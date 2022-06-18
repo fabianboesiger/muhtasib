@@ -2,7 +2,7 @@ import { Route, Routes, BrowserRouter } from "react-router-dom";
 import Nav from "./Nav";
 import Session from "./Session";
 
-export const BASE_URL = "http://192.168.1.200:8888";
+export const BASE_URL = "http://192.168.1.200:8080";
 
 function App() {
   return (
