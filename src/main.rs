@@ -50,7 +50,7 @@ async fn main() -> Result<(), AnyError> {
         // TODO: Change CORS settings.
         .layer(CorsLayer::permissive());
 
-    Server::bind(&"127.0.0.1:8080".parse().unwrap())
+    Server::bind(&"0.0.0.0:8080".parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
