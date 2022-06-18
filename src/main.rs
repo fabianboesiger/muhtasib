@@ -12,7 +12,7 @@ use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::env;
 use tokio::try_join;
-use tower_http::{cors::CorsLayer, services::ServeFile};
+use tower_http::{cors::CorsLayer, services::ServeDir};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -36,7 +36,7 @@ async fn main() -> Result<(), AnyError> {
         /*
         .route(
             "/",
-            get_service(ServeFile::new("./frontend/build/index.html")).handle_error(
+            get_service(ServeDir::new("./frontend/build")).handle_error(
                 |error: std::io::Error| async move {
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
