@@ -1,0 +1,42 @@
+html {
+    font-family: sans-serif;
+}
+
+body {
+    margin: 0;
+}
+
+table.info tr {
+    text-align: left;
+}
+
+#root {
+    display: flex;
+}
+
+nav, main {
+    border: 1px solid lightgray;
+    padding: 8px;
+}
+
+main {
+    flex-grow: 1;
+    flex-shrink: 0;
+}
+
+nav {
+    flex-grow: 0;
+    flex-shrink: 0;
+}
+
+nav > div {
+    margin-top: 20px;
+}
+
+nav a {
+    display: block;
+}
+
+nav button {
+    position: absolute;
+}

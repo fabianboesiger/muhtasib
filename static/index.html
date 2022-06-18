@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Muhtasib</title>
+        <meta charset="UTF-8">
+        <script src='https://cdn.plot.ly/plotly-2.8.3.min.js'></script>
+        <style>
+            table {
+                border-collapse: collapse;
+            }
+            
+            thead th {
+                position: sticky;
+                top: 0;
+                text-align: left;
+                background: #111;
+            }
+
+            td {
+                border-bottom: 1px solid black;
+            }
+
+            td, th {
+                padding: 4px;
+            }
+
+            tr.selected {
+                background: #333;
+            }
+
+            body {
+                background: #111;
+                color: #eee;
+                margin: 0;
+                font-family: sans-serif;
+            }
+
+            header {
+                margin: 8px;
+                padding: 16px;
+            }
+
+            h1 {
+                margin: 0;
+            }
+
+            main {
+                display: flex;
+            }
+
+            #select, #strategy {
+                background: #222;
+                margin: 8px;
+                padding: 16px;
+            }
+
+            #strategy {
+                flex-grow: 1;
+            }
+
+            #equity-wrapper {
+                position: relative;
+                height: 500px;
+            }
+
+            #equity-chart {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+            }
+
+            #positions-table {
+                display: block;
+                max-height: 240px;
+                overflow: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Bazaar</h1>
+            <em>Muhtasib</em>
+        </header>
+        <main>
+            <section id="select">
+                <h2>Strategies</h2>
+                <table id="sessions-table">
+                    <thead>
+                        <tr><th>Name</th><th>Exchange</th><th>Creation</th><th></th></tr>
+                    </thead>
+                    <tbody id="sessions-tbody">
+                    </tbody>
+                </table>
+            </section>
+            <section id="strategy">
+                <section id="overview">
+                    <h2>Overview</h2>
+                    <table id="overview-table">
+                        <thead>
+                        </thead>
+                        <tbody>
+                            <tr><th>Online since</th><td id="online-since"></td></tr>
+                            <tr><th>Profit per Month</th><td id="profit-per-month"></td></tr>
+                            <tr><th>Orders per Month</th><td id="orders-per-month"></td></tr>
+                            <tr><th>Profit per Day</th><td id="profit-per-day"></td></tr>
+                        </tbody>
+                    </table>
+                </section>
+                <section id="equity">
+                    <h2>Equity</h2>
+                    <div id="equity-wrapper">
+                        <div id="equity-chart"></div>
+                    </div>
+                </section>
+                <section id="orders">
+                    <h2>Orders</h2>
+                    <table id="orders-table">
+                        <thead>
+                            <tr><th>Market</th><th>Side</th><th>Size</th><th>Price</th><th>Time</th></tr>
+                        </thead>
+                        <tbody id="orders-tbody">
+                        </tbody>
+                    </table>
+                </section>
+            </section>
+        </main>
+        
+        <script>
+            let id = null;
+
+            function get(path, callback) {
+                const xhttp = new XMLHttpRequest();
+                xhttp.onreadystatechange = function() {
+                    if (this.readyState == 4 && this.status == 200) {
+                        const response = JSON.parse(xhttp.responseText);
+                        callback(response);
+                    }
+                };
+                xhttp.open("GET", "http://localhost:8888" + path, true);
+                xhttp.send();
+            }
+
+            const sessions = document.getElementById("sessions-tbody");
+            const orders = document.getElementById("orders-tbody");
+
+
+            function getSessions() {
+                get("/sessions", function(response) {
+                    sessions.innerHTML = response.map(session => {
+                        return `<tr id="session-${session.sessionId}" onclick="changeId('${session.sessionId}')"><td>${session.name}</td><td>${session.exchange}</td><td>${new Date(session.createTime).toLocaleString()}</td><td class="delete" onclick="deleteSession('${session.sessionId}')">&#128465;</td></tr>`;
+                    }).join("");
+
+                    if (window.location.hash.length > 0) {
+                        const newId = window.location.hash.substr(1);
+                        if (response.map(session => session.sessionId).includes(newId)) {
+                            changeId(newId);
+                        }
+                    }
+                });
+            }
+
+            function changeId(newId) {
+                console.log("change id to " + newId);
+                if (id !== null) {
+                    document.getElementById("session-" + id).classList.remove("selected");
+                }
+                id = newId;
+                window.location.hash = id;
+                document.getElementById("session-" + id).classList.add("selected");
+                getSession();
+            }
+
+            function getSession() {
+                get("/sessions/" + id, function(response) {
+                    orders.innerHTML = response.orders.map(order => {
+                        return `<tr id="order-${order.orderId}"><td>${order.market}</td><td>${order.side}</td><td>${order.executedSize}</td><td>${order.executedPrice}</td><td>${new Date(order.executedTime).toLocaleString()}</td></tr>`;
+                    }).join("");
+
+                    const equity = {
+                        x: response.equities.map(equity => equity.time),
+                        y: response.equities.map(equity => equity.total),
+                        mode: "lines",
+                        fill: "tozeroy",
+                        name: "Equity",
+                        marker: {
+                            color: "#5ff"
+                        }
+                    };
+
+                    console.log(response);
+
+                    updateOveriew(response);
+
+                    const buyOrders = response.orders.filter(position => position.side == "BUY");
+                    const sellOrders = response.orders.filter(position => position.side == "SELL");
+
+                    const buys = {
+                        x: buyOrders.map(position => position.executedTime),
+                        y: buyOrders.map(position => position.executedSize * position.executedPrice),
+                        mode: "markers",
+                        name: "Buy Order",
+                        marker: {
+                            color: "#ff5"
+                        }
+                    };
+                    const sells = {
+                        x: sellOrders.map(position => position.executedTime),
+                        y: sellOrders.map(position => position.executedSize * position.executedPrice),
+                        mode: "markers",
+                        name: "Sell Order",
+                        marker: {
+                            color: "#f5f"
+                        }
+                    };
+
+                    const data = [equity, buys, sells];
+                    const layout = {
+                        plot_bgcolor: "rgba(0,0,0,0)",
+                        paper_bgcolor: "rgba(0,0,0,0)",
+                        xaxis: {
+                            title: "Time",
+                            titlefont: {
+                                color: "#eee"
+                            },
+                            tickfont: {
+                                color: "#eee"
+                            },
+                        },
+                        yaxis: {
+                            title: "USD",
+                            titlefont: {
+                                color: "#eee"
+                            },
+                            tickfont: {
+                                color: "#eee"
+                            },
+                        },
+                        legend: {
+                            font: {
+                                color: "#eee"
+                            }
+                        }
+                    }
+                    Plotly.newPlot("equity-chart", data, layout);
+                })
+            }
+
+            
+            function updateOveriew(response) {
+                const onlineSinceElem = document.getElementById("online-since");
+                const profitPerMonthElem = document.getElementById("profit-per-month");
+                const ordersPerMonthElem = document.getElementById("orders-per-month");
+                const profitPerDayElem = document.getElementById("profit-per-day");
+
+
+                const startDate = new Date(response.equities[0].time);
+                const endDate = new Date(response.equities[response.equities.length - 1].time);
+                const diff = endDate.getTime() - startDate.getTime();
+                const months = diff / (1000 * 60 * 60 * 24 * 30);
+
+                let profitPerDay = [1, 2, 3, 4, 5];
+                let lastEquity = response.equities[0].total;
+                let lastTime = new Date(response.equities[0].time);
+                for (let i = 1; i < response.equities.length; i++) {
+                    let equity = response.equities[i].total;
+                    let time = new Date(response.equities[i].time);
+                    if (time.getTime() - lastTime.getTime() >= 1000 * 60 * 60 * 24) {
+                        profitPerDay.push(equity - lastEquity);
+                        lastTime = time;
+                        lastEquity = equity;
+                    }
+                }
+
+                let meanProfitPerDay = 0.0;
+                for (profit of profitPerDay) {
+                    meanProfitPerDay += profit;
+                }
+                meanProfitPerDay /= profitPerDay.length;
+
+                let stdevProfitPerDay = 0.0;
+                for (profit of profitPerDay) {
+                    stdevProfitPerDay += (meanProfitPerDay - profit) * (meanProfitPerDay - profit);
+                }
+                stdevProfitPerDay /= profitPerDay.length;
+                stdevProfitPerDay = Math.sqrt(stdevProfitPerDay);
+
+                const profitPerMonth = (response.equities[response.equities.length - 1].total - response.equities[0].total) / response.equities[0].total * 100 / months;
+                const ordersPerMonth = response.orders.length / months;
+
+                onlineSinceElem.innerText = Math.round(months) + " months";
+                profitPerMonthElem.innerText = Math.round(profitPerMonth * 100) / 100 + "%";
+                ordersPerMonthElem.innerText = Math.round(ordersPerMonth);
+                profitPerDayElem.innerText = Math.round(meanProfitPerDay * 100) / 100 + " ± " + Math.round(stdevProfitPerDay * 100) / 100 + " $";
+            }
+            
+
+            window.addEventListener("resize", function() {
+                const wrapper = document.getElementById("equity-wrapper");
+                Plotly.relayout("equity-chart", {
+                    width: wrapper.getBoundingClientRect().width,
+                    height: wrapper.getBoundingClientRect().height,
+                });
+            });
+
+            getSessions();
+            setInterval(getSession, 10000); 
+
+        </script>
+    </body>
+</html>
